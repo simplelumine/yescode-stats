@@ -1,4 +1,4 @@
-# YesCode Stats
+# YesCode StatusBar
 
 A VS Code extension that displays your YesCode subscription balance in the status bar.
 
@@ -43,8 +43,8 @@ If you wish to contribute or run the extension locally:
 
 ```bash
 # Clone the repository
-git clone https://github.com/simplelumine/yescode-stats.git
-cd yescode-stats
+git clone https://github.com/simplelumine/yescode-statusbar.git
+cd yescode-statusbar
 
 # Install dependencies
 npm install
