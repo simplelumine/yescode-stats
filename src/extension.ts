@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 interface SubscriptionPlan {
     daily_balance: number;
     weekly_limit: number;
+    name: string;
 }
 
 interface ProfileResponse {
@@ -10,13 +11,16 @@ interface ProfileResponse {
     pay_as_you_go_balance: number;
     current_week_spend: number;
     subscription_plan: SubscriptionPlan;
+    balance_preference: string;
+    last_week_reset: string;
+    subscription_expiry: string;
 }
 
 let statusBarItem: vscode.StatusBarItem;
 let refreshTimer: NodeJS.Timeout | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('Yescode Stats extension is now active');
+    console.log('YesCode Stats extension is now active');
 
     // Create status bar item
     statusBarItem = vscode.window.createStatusBarItem(
@@ -24,7 +28,7 @@ export function activate(context: vscode.ExtensionContext) {
         100
     );
     statusBarItem.command = 'yescode.refreshBalance';
-    statusBarItem.text = 'Yescode: Loading...';
+    statusBarItem.text = 'YesCode: Loading...';
     statusBarItem.show();
     context.subscriptions.push(statusBarItem);
 
@@ -37,23 +41,24 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('yescode.refreshBalance', async () => {
-            await updateBalance(context);
+            await updateBalance(context, false); // Manual refresh
         })
     );
 
     context.subscriptions.push(
         vscode.commands.registerCommand('yescode.showBalance', async () => {
-            await updateBalance(context);
+            await updateBalance(context, false); // Manual refresh
         })
     );
 
     // Initial balance update
-    updateBalance(context);
+    updateBalance(context, false);
 
-    // Set up automatic refresh every 30 minutes
+    // Set up automatic refresh every 1 minute
     refreshTimer = setInterval(() => {
-        updateBalance(context);
-    }, 30 * 60 * 1000); // 30 minutes in milliseconds
+        console.log('Automatic refresh triggered...');
+        updateBalance(context, true); // Automatic refresh
+    }, 1 * 60 * 1000); // 1 minute in milliseconds
 
     // Clean up timer on deactivation
     context.subscriptions.push({
@@ -67,7 +72,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 async function setApiKey(context: vscode.ExtensionContext): Promise<void> {
     const apiKey = await vscode.window.showInputBox({
-        prompt: 'Enter your Yescode API Key',
+        prompt: 'Enter your YesCode API Key',
         password: true,
         ignoreFocusOut: true,
         placeHolder: 'Your API key will be stored securely'
@@ -76,8 +81,7 @@ async function setApiKey(context: vscode.ExtensionContext): Promise<void> {
     if (apiKey) {
         await context.secrets.store('yescode.apiKey', apiKey);
         vscode.window.showInformationMessage('API Key saved securely!');
-        // Immediately refresh balance after setting key
-        await updateBalance(context);
+        await updateBalance(context, false);
     } else {
         vscode.window.showWarningMessage('API Key not saved');
     }
@@ -89,7 +93,7 @@ async function fetchBalance(context: vscode.ExtensionContext): Promise<ProfileRe
 
         if (!apiKey) {
             vscode.window.showWarningMessage(
-                'Yescode API Key not set. Please run "Yescode: Set API Key" command.',
+                'YesCode API Key not set. Please run "YesCode: Set API Key" command.',
                 'Set API Key'
             ).then(selection => {
                 if (selection === 'Set API Key') {
@@ -115,13 +119,61 @@ async function fetchBalance(context: vscode.ExtensionContext): Promise<ProfileRe
     } catch (error) {
         console.error('Error fetching balance:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        vscode.window.showErrorMessage(`Failed to fetch Yescode balance: ${errorMessage}`);
+        vscode.window.showErrorMessage(`Failed to fetch YesCode balance: ${errorMessage}`);
         return null;
     }
 }
 
+function formatDate(dateString: string): string {
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function calculateNextReset(lastWeekReset: string): string {
+    const resetDate = new Date(lastWeekReset);
+    resetDate.setDate(resetDate.getDate() + 7);
+    return formatDate(resetDate.toISOString());
+}
+
+function getDaysUntil(dateString: string): string {
+    const targetDate = new Date(dateString);
+    const now = new Date();
+    const diffTime = targetDate.getTime() - now.getTime();
+    const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    // If within 24 hours (positive or negative), show hours
+    if (Math.abs(diffHours) <= 24) {
+        if (diffHours === 0) {
+            return 'less than 1 hour';
+        } else if (diffHours === 1) {
+            return 'in 1 hour';
+        } else if (diffHours === -1) {
+            return '1 hour ago';
+        } else if (diffHours > 0) {
+            return `in ${diffHours} hours`;
+        } else {
+            return `${Math.abs(diffHours)} hours ago`;
+        }
+    }
+
+    // Otherwise show days
+    if (diffDays === 0) {
+        return 'today';
+    } else if (diffDays === 1) {
+        return 'in 1 day';
+    } else if (diffDays < 0) {
+        return `${Math.abs(diffDays)} days ago`;
+    } else {
+        return `in ${diffDays} days`;
+    }
+}
+
 function calculateCriticalBalance(data: ProfileResponse): {
-    type: 'daily' | 'weekly' | 'payg';
+    type: 'daily' | 'weekly' | 'payGo';
     percentage: number;
     displayText: string;
     tooltip: string;
@@ -130,35 +182,73 @@ function calculateCriticalBalance(data: ProfileResponse): {
         subscription_balance,
         pay_as_you_go_balance,
         current_week_spend,
-        subscription_plan
+        subscription_plan,
+        balance_preference,
+        last_week_reset,
+        subscription_expiry
     } = data;
 
-    // Check if subscription balance is depleted (PAYG mode)
-    if (subscription_balance <= 0) {
+    const nextReset = calculateNextReset(last_week_reset);
+    const resetDate = new Date(last_week_reset);
+    resetDate.setDate(resetDate.getDate() + 7);
+    const resetRelative = getDaysUntil(resetDate.toISOString());
+    const expiryDate = formatDate(subscription_expiry);
+    const expiryRelative = getDaysUntil(subscription_expiry);
+
+    if (balance_preference === 'payg_only') {
+        const tooltip = [
+            `Plan: ${subscription_plan.name}`,
+            `Daily: N/A (PayGo Only Mode)`,
+            `Weekly: N/A (PayGo Only Mode)`,
+            `Reset: ${nextReset} (${resetRelative})`,
+            `Expiry: ${expiryDate} (${expiryRelative})`,
+            `PayGo: $${pay_as_you_go_balance.toFixed(2)}`,
+            ``,
+            'Click to refresh'
+        ].join('\n');
+
         return {
-            type: 'payg',
+            type: 'payGo',
             percentage: pay_as_you_go_balance,
-            displayText: `Yescode PAYG: $${pay_as_you_go_balance.toFixed(2)}`,
-            tooltip: `Pay-as-you-go Balance: $${pay_as_you_go_balance.toFixed(2)}\n\nClick to refresh`
+            displayText: `YesCode PayGo: $${pay_as_you_go_balance.toFixed(2)}`,
+            tooltip
         };
     }
 
-    // Calculate daily percentage
-    const dailyPercentage = (subscription_balance / subscription_plan.daily_balance) * 100;
-
-    // Calculate weekly percentage
     const weeklyRemaining = subscription_plan.weekly_limit - current_week_spend;
-    const weeklyPercentage = (weeklyRemaining / subscription_plan.weekly_limit) * 100;
 
-    // Determine which is more critical (lower)
+    if (subscription_balance <= 0 || weeklyRemaining <= 0) {
+        const tooltip = [
+            `Plan: ${subscription_plan.name}`,
+            `Daily: $${subscription_balance.toFixed(2)} / $${subscription_plan.daily_balance.toFixed(2)}`,
+            `Weekly: $${weeklyRemaining.toFixed(2)} / $${subscription_plan.weekly_limit.toFixed(2)}`,
+            `Reset: ${nextReset} (${resetRelative})`,
+            `Expiry: ${expiryDate} (${expiryRelative})`,
+            `PayGo: $${pay_as_you_go_balance.toFixed(2)}`,
+            ``,
+            'Click to refresh'
+        ].join('\n');
+
+        return {
+            type: 'payGo',
+            percentage: pay_as_you_go_balance,
+            displayText: `YesCode PayGo: $${pay_as_you_go_balance.toFixed(2)}`,
+            tooltip
+        };
+    }
+
+    const dailyPercentage = (subscription_balance / subscription_plan.daily_balance) * 100;
+    const weeklyPercentage = (weeklyRemaining / subscription_plan.weekly_limit) * 100;
     const isCriticalDaily = dailyPercentage <= weeklyPercentage;
 
-    // Build tooltip with detailed breakdown
     const tooltip = [
+        `Plan: ${subscription_plan.name}`,
         `Daily: $${subscription_balance.toFixed(2)} / $${subscription_plan.daily_balance.toFixed(2)} (${dailyPercentage.toFixed(1)}%)`,
         `Weekly: $${weeklyRemaining.toFixed(2)} / $${subscription_plan.weekly_limit.toFixed(2)} (${weeklyPercentage.toFixed(1)}%)`,
-        `PAYG Available: $${pay_as_you_go_balance.toFixed(2)}`,
-        '',
+        `Reset: ${nextReset} (${resetRelative})`,
+        `Expiry: ${expiryDate} (${expiryRelative})`,
+        `PayGo: $${pay_as_you_go_balance.toFixed(2)}`,
+        ``,
         'Click to refresh'
     ].join('\n');
 
@@ -166,59 +256,58 @@ function calculateCriticalBalance(data: ProfileResponse): {
         return {
             type: 'daily',
             percentage: dailyPercentage,
-            displayText: `Yescode Daily: ${dailyPercentage.toFixed(0)}%`,
+            displayText: `YesCode Daily: ${dailyPercentage.toFixed(0)}%`,
             tooltip
         };
     } else {
         return {
             type: 'weekly',
             percentage: weeklyPercentage,
-            displayText: `Yescode Weekly: ${weeklyPercentage.toFixed(0)}%`,
+            displayText: `YesCode Weekly: ${weeklyPercentage.toFixed(0)}%`,
             tooltip
         };
     }
 }
 
-async function updateBalance(context: vscode.ExtensionContext): Promise<void> {
+async function updateBalance(context: vscode.ExtensionContext, isAutoRefresh: boolean): Promise<void> {
     try {
+        if (!isAutoRefresh) {
+            statusBarItem.text = `$(sync~spin) YesCode...`;
+        }
+        
         const data = await fetchBalance(context);
 
         if (!data) {
-            statusBarItem.text = 'Yescode: Error';
+            statusBarItem.text = 'YesCode: Error';
             statusBarItem.tooltip = 'Failed to fetch balance. Click to retry.';
             return;
         }
 
         const result = calculateCriticalBalance(data);
 
-        // Update status bar
         statusBarItem.text = result.displayText;
         statusBarItem.tooltip = result.tooltip;
 
-        // Set background color based on percentage (for visual warning)
-        if (result.type !== 'payg') {
+        if (result.type !== 'payGo') {
             if (result.percentage < 20) {
                 statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
-            } else if (result.percentage < 50) {
-                statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
             } else {
                 statusBarItem.backgroundColor = undefined;
             }
         } else {
-            // PAYG mode - show warning color if balance is low
             if (result.percentage < 10) {
                 statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
-            } else if (result.percentage < 50) {
-                statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
             } else {
                 statusBarItem.backgroundColor = undefined;
             }
         }
+        if (!isAutoRefresh) {
+            console.log('Balance updated successfully:', result.displayText);
+        }
 
-        console.log('Balance updated successfully:', result.displayText);
     } catch (error) {
         console.error('Error updating balance:', error);
-        statusBarItem.text = 'Yescode: Error';
+        statusBarItem.text = 'YesCode: Error';
         statusBarItem.tooltip = 'An unexpected error occurred. Click to retry.';
         statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
     }

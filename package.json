@@ -1,8 +1,8 @@
 {
   "name": "yescode-stats",
-  "displayName": "Yescode Stats",
-  "description": "Display Yescode subscription balance in VS Code status bar",
-  "version": "0.0.1",
+  "displayName": "YesCode Stats",
+  "description": "Display YesCode subscription balance in VS Code status bar",
+  "version": "0.1.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -22,15 +22,15 @@
     "commands": [
       {
         "command": "yescode.setApiKey",
-        "title": "Yescode: Set API Key"
+        "title": "YesCode: Set API Key"
       },
       {
         "command": "yescode.refreshBalance",
-        "title": "Yescode: Refresh Balance"
+        "title": "YesCode: Refresh Balance"
       },
       {
         "command": "yescode.showBalance",
-        "title": "Yescode: Show Balance"
+        "title": "YesCode: Show Balance"
       }
     ]
   },
