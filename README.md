@@ -1,60 +1,64 @@
-# Yescode Stats
+# YesCode Stats
 
-A VS Code extension that displays your Yescode subscription balance in the status bar.
+A VS Code extension that displays your YesCode subscription balance in the status bar.
 
 ## Features
 
-- Displays the most critical balance metric (Daily or Weekly percentage) in the status bar
-- Shows Pay-as-you-go balance when subscription is depleted
-- Secure API key storage using VS Code SecretStorage
-- Automatic refresh every 30 minutes
-- Color-coded warnings (red for <20%, yellow for <50%)
-- Detailed tooltip with full balance breakdown
+-   **At-a-Glance Balance:** Displays the most critical balance metric (Daily or Weekly percentage) directly in the status bar.
+-   **Smart Display Logic:** Automatically switches to your PayGo balance when your daily or weekly subscription balance is depleted.
+-   **Detailed Tooltip Dashboard:** Hover over the status bar item to see a full "mini-dashboard" with:
+    -   Plan Name
+    -   Daily and Weekly breakdown (balance, limit, and percentage)
+    -   PayGo Balance
+    -   Next Reset and Subscription Expiry dates, shown in both absolute and relative time (e.g., "in 7 days" or "in 3 hours").
+-   **Secure API Key Storage:** Uses VS Code's native `SecretStorage` to keep your API key safe.
+-   **Automatic Refresh:** Keeps your balance up-to-date by automatically refreshing every 3 minutes.
+-   **Critical Balance Warning:** The status bar item turns yellow to warn you when your subscription balance is low (<10%) or your PayGo balance is very low (<$5).
 
 ## Setup
 
-1. Install the extension
-2. Run the command `Yescode: Set API Key` from the Command Palette (Ctrl+Shift+P / Cmd+Shift+P)
-3. Enter your Yescode API key
-4. The balance will automatically appear in the status bar
+1.  Install the extension from the VS Code Marketplace.
+2.  Open the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`).
+3.  Run the command `YesCode: Set API Key` and enter your YesCode API key when prompted.
+4.  Your balance will immediately appear in the status bar.
 
 ## Commands
 
-- `Yescode: Set API Key` - Store your API key securely
-- `Yescode: Refresh Balance` - Manually refresh the balance display
-- `Yescode: Show Balance` - Display the current balance
+-   `YesCode: Set API Key`: Store your API key securely.
+-   `YesCode: Refresh Balance`: Manually trigger a refresh of your balance.
 
-## Usage
+## Project Structure
 
-The extension will automatically:
-- Fetch your balance on startup
-- Update every 30 minutes
-- Show the most critical metric (lower percentage between daily and weekly)
-- Switch to PAYG display when subscription balance is depleted
+This extension is built with a clean, modular architecture to separate concerns:
 
-Click the status bar item to manually refresh the balance.
-
-## Requirements
-
-- VS Code 1.85.0 or higher
-- Valid Yescode API key
+-   `extension.ts`: The main activation file that handles VS Code integration and UI.
+-   `api.ts`: Manages all API calls and secure key storage.
+-   `balance.ts`: Contains the core business logic for calculating which balance to display.
+-   `utils.ts`: Helper functions for date and time formatting.
+-   `types.ts`: Defines the data structures and types used throughout the extension.
 
 ## Development
 
+If you wish to contribute or run the extension locally:
+
 ```bash
+# Clone the repository
+git clone https://github.com/simplelumine/yescode-stats.git
+cd yescode-stats
+
 # Install dependencies
 npm install
 
-# Compile TypeScript
+# Compile the TypeScript code
 npm run compile
 
-# Watch for changes
-npm run watch
+# Open the project in VS Code
+code .
 
-# Run the extension
-Press F5 in VS Code to open Extension Development Host
+# Start the debugger
+Press F5 to open the Extension Development Host with the extension running.
 ```
 
 ## License
 
-MIT
+[MIT](./LICENSE.md)
