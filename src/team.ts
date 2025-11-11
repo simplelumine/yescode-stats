@@ -37,7 +37,7 @@ export function calculateTeamBalance(profile: ProfileResponse): BalanceResult {
         `Reset: ${nextReset} (${resetRelative})`,
         `Expiry: ${expiryDate} (${expiryRelative})`,
         ``,
-        'Click to refresh'
+        'Click to open menu'
     ].join('\n');
 
     // Return the smaller percentage (more critical)

@@ -18,12 +18,45 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.StatusBarAlignment.Right,
         100
     );
-    statusBarItem.command = 'yescode.refreshBalance';
+    statusBarItem.command = 'yescode.showMenu';
     statusBarItem.text = 'YesCode: Loading...';
     statusBarItem.show();
     context.subscriptions.push(statusBarItem);
 
     // Register commands
+    context.subscriptions.push(
+        vscode.commands.registerCommand('yescode.showMenu', async () => {
+            const items: vscode.QuickPickItem[] = [
+                {
+                    label: '$(sync) Refresh Balance',
+                    description: 'Manually refresh balance data'
+                },
+                {
+                    label: '$(symbol-color) Switch Display Mode',
+                    description: 'Change between Auto/Subscription/PayGo/Team modes'
+                },
+                {
+                    label: '$(key) Set API Key',
+                    description: 'Configure your YesCode API key'
+                }
+            ];
+
+            const selected = await vscode.window.showQuickPick(items, {
+                placeHolder: 'YesCode Menu'
+            });
+
+            if (selected) {
+                if (selected.label.includes('Refresh Balance')) {
+                    await vscode.commands.executeCommand('yescode.refreshBalance');
+                } else if (selected.label.includes('Switch Display Mode')) {
+                    await vscode.commands.executeCommand('yescode.switchDisplayMode');
+                } else if (selected.label.includes('Set API Key')) {
+                    await vscode.commands.executeCommand('yescode.setApiKey');
+                }
+            }
+        })
+    );
+
     context.subscriptions.push(
         vscode.commands.registerCommand('yescode.setApiKey', async () => {
             await setApiKey(context);
@@ -33,12 +66,6 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('yescode.refreshBalance', async () => {
-            await updateBalance(context, false); // Manual refresh
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('yescode.showBalance', async () => {
             await updateBalance(context, false); // Manual refresh
         })
     );
@@ -72,7 +99,9 @@ export function activate(context: vscode.ExtensionContext) {
                 },
                 {
                     label: 'PayGo',
-                    description: 'Always show pay-as-you-go balance',
+                    description: (hasSubscription && !isPayGoOnly)
+                        ? '⚠️ Warning: Your account is set to Subscription First mode'
+                        : 'Always show pay-as-you-go balance',
                     detail: currentDisplayMode === 'paygo' ? '✓ Currently selected' : ''
                 },
                 {
@@ -98,12 +127,21 @@ export function activate(context: vscode.ExtensionContext) {
 
                 const newMode = modeMap[selected.label];
 
-                // Warn if selecting subscription when not available or PayGo only
+                // Warn if selecting modes that conflict with balance preference
                 if (newMode === 'subscription' && !hasSubscription) {
                     vscode.window.showWarningMessage('No subscription found. Will fall back to PayGo mode.');
                 } else if (newMode === 'subscription' && isPayGoOnly) {
                     const confirm = await vscode.window.showWarningMessage(
                         'Your account is set to PayGo Only mode. Switching to Subscription display may show incorrect data.',
+                        'Continue Anyway',
+                        'Cancel'
+                    );
+                    if (confirm !== 'Continue Anyway') {
+                        return;
+                    }
+                } else if (newMode === 'paygo' && hasSubscription && !isPayGoOnly) {
+                    const confirm = await vscode.window.showWarningMessage(
+                        'Your account is set to Subscription First mode. Switching to PayGo display may not reflect your actual usage.',
                         'Continue Anyway',
                         'Cancel'
                     );
@@ -126,11 +164,11 @@ export function activate(context: vscode.ExtensionContext) {
     // Initial balance update
     updateBalance(context, false);
 
-    // Set up automatic refresh every 3 minutes
+    // Set up automatic refresh every 1 minute
     refreshTimer = setInterval(() => {
         console.log('Automatic refresh triggered...');
         updateBalance(context, true); // Automatic refresh
-    }, 3 * 60 * 1000); // 3 minutes in milliseconds
+    }, 1 * 60 * 1000); // 1 minute in milliseconds
 
     // Clean up timer on deactivation
     context.subscriptions.push({

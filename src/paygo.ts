@@ -7,7 +7,7 @@ export function calculatePayGoBalance(profile: ProfileResponse): BalanceResult {
         `Pay-as-you-go Mode`,
         `Balance: $${pay_as_you_go_balance.toFixed(2)}`,
         ``,
-        'Click to refresh'
+        'Click to open menu'
     ].join('\n');
 
     return {

@@ -37,7 +37,7 @@ export function calculateSubscriptionBalance(profile: ProfileResponse): BalanceR
         `Reset: ${nextReset} (${resetRelative})`,
         `Expiry: ${expiryDate} (${expiryRelative})`,
         ``,
-        'Click to refresh'
+        'Click to open menu'
     ].join('\n');
 
     if (isCriticalDaily) {

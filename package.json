@@ -23,16 +23,16 @@
   "contributes": {
     "commands": [
       {
+        "command": "yescode.showMenu",
+        "title": "YesCode: Show Menu"
+      },
+      {
         "command": "yescode.setApiKey",
         "title": "YesCode: Set API Key"
       },
       {
         "command": "yescode.refreshBalance",
         "title": "YesCode: Refresh Balance"
-      },
-      {
-        "command": "yescode.showBalance",
-        "title": "YesCode: Show Balance"
       },
       {
         "command": "yescode.switchDisplayMode",
