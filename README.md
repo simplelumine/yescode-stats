@@ -53,6 +53,7 @@ This project would not have been possible without the incredible support and con
 -   Thank you to the **YesCode CTO** for their insightful guidance on the project's name and direction.
 -   Thank you to **喵酱 (YesCode User: 太阳照常升起)** for providing detailed API documentation which was essential for the implementation.
 -   Thank you to **萝拉酱 (YesCode User: Aurora)** for their thorough testing and feedback.
+-   Thank you to **杰森酱 (YesCode User: Jason 🅥)** for discovering the `cr` vendor switching key, building upon 喵酱's documentation.
 
 ## Development
 
