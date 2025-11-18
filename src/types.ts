@@ -16,6 +16,8 @@ export interface TeamMembership {
     daily_subscription_spending: number;
     expires_at: string;
     last_week_reset: string;
+    team_api_key: string;
+    team_name: string;
 }
 
 export interface ProfileResponse {

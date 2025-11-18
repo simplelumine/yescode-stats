@@ -1,11 +1,13 @@
+/**
+ * Generate CLI setup command
+ */
 export function generateCliSetupCommand(
     cli: 'gemini' | 'codex' | 'claude',
     os: 'windows' | 'unix',
     mode: 'team' | 'user',
-    apiKey: string
+    apiKey: string,
+    baseUrl: string
 ): string {
-    const baseUrl = 'https://co.yes.vg';
-
     // Get script name based on CLI
     const scriptName = cli === 'claude' ? 'claude-code' : cli === 'codex' ? 'codex' : 'gemini';
     const scriptFileName = cli === 'gemini' ? `setup_${scriptName}` : `setup-${scriptName}`;

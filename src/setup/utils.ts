@@ -7,12 +7,9 @@ import * as os from 'os';
 export function getTeamInfo(profile: ProfileResponse): { teamApiKey: string; teamName: string } | null {
     // Check if user has an active team membership
     if (profile.team_membership && profile.current_team) {
-        // Team API keys would be stored in a team-specific format
-        // For now, we'll use a placeholder approach - the actual implementation
-        // would depend on how team API keys are provided by the backend
         return {
-            teamApiKey: 'team', // Placeholder - actual team API key retrieval would be implemented
-            teamName: profile.current_team.name
+            teamApiKey: profile.team_membership.team_api_key,
+            teamName: profile.team_membership.team_name
         };
     }
     return null;
