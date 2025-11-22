@@ -83,41 +83,36 @@ export async function isProviderSwitchingAvailable(context: vscode.ExtensionCont
 // ============================================================================
 
 export async function fetchBalance(context: vscode.ExtensionContext): Promise<ProfileResponse | null> {
-    try {
-        const apiKey = await context.secrets.get('yescode.apiKey');
+    const apiKey = await context.secrets.get('yescode.apiKey');
 
-        if (!apiKey) {
-            vscode.window.showWarningMessage(
-                'YesCode API Key not set. Please run "YesCode: Set API Key" command.',
-                'Set API Key'
-            ).then(selection => {
-                if (selection === 'Set API Key') {
-                    vscode.commands.executeCommand('yescode.setApiKey');
-                }
-            });
-            return null;
-        }
-
-        const baseUrl = await getBaseUrl(context);
-        const response = await fetch(`${baseUrl}/api/v1/auth/profile`, {
-            method: 'GET',
-            headers: {
-                'X-API-Key': apiKey
+    if (!apiKey) {
+        // API key not set - show warning once (this is a configuration issue, not a network error)
+        vscode.window.showWarningMessage(
+            'YesCode API Key not set. Please run "YesCode: Set API Key" command.',
+            'Set API Key'
+        ).then(selection => {
+            if (selection === 'Set API Key') {
+                vscode.commands.executeCommand('yescode.setApiKey');
             }
         });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json() as ProfileResponse;
-        return data;
-    } catch (error) {
-        console.error('Error fetching balance:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        vscode.window.showErrorMessage(`Failed to fetch YesCode balance: ${errorMessage}`);
         return null;
     }
+
+    const baseUrl = await getBaseUrl(context);
+    const response = await fetch(`${baseUrl}/api/v1/auth/profile`, {
+        method: 'GET',
+        headers: {
+            'X-API-Key': apiKey
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json() as ProfileResponse;
+    return data;
+    // Network errors will be thrown and caught by statusbar.ts for retry handling
 }
 
 export async function setApiKey(context: vscode.ExtensionContext): Promise<void> {

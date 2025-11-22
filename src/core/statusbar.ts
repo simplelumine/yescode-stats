@@ -6,6 +6,10 @@ let statusBarItem: vscode.StatusBarItem;
 let refreshTimer: NodeJS.Timeout | undefined;
 let currentDisplayMode: DisplayMode = 'auto';
 
+// Retry configuration
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 5000; // 5 seconds between retries
+
 export function createStatusBar(context: vscode.ExtensionContext): vscode.StatusBarItem {
     // Load saved display mode
     currentDisplayMode = context.globalState.get<DisplayMode>('displayMode', 'auto');
@@ -40,47 +44,70 @@ export function stopAutoRefresh(): void {
 }
 
 export async function updateStatusBar(context: vscode.ExtensionContext, isAutoRefresh: boolean): Promise<void> {
-    try {
-        if (!isAutoRefresh) {
-            statusBarItem.text = `$(sync~spin) YesCode...`;
-        }
-
-        const data = await fetchBalance(context);
-
-        if (!data) {
-            statusBarItem.text = 'YesCode: Error';
-            statusBarItem.tooltip = 'Failed to fetch balance. Click to retry.';
-            return;
-        }
-
-        const result = calculateBalance(data, currentDisplayMode);
-
-        statusBarItem.text = result.displayText;
-        statusBarItem.tooltip = result.tooltip;
-
-        if (result.type !== 'payGo') {
-            if (result.percentage < 10) {
-                statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
-            } else {
-                statusBarItem.backgroundColor = undefined;
-            }
-        } else {
-            if (result.percentage < 5) {
-                statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
-            } else {
-                statusBarItem.backgroundColor = undefined;
-            }
-        }
-        if (!isAutoRefresh) {
-            console.log('Balance updated successfully:', result.displayText);
-        }
-
-    } catch (error) {
-        console.error('Error updating balance:', error);
-        statusBarItem.text = 'YesCode: Error';
-        statusBarItem.tooltip = 'An unexpected error occurred. Click to retry.';
-        statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+    if (!isAutoRefresh) {
+        statusBarItem.text = `$(sync~spin) YesCode...`;
     }
+
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            const data = await fetchBalance(context);
+
+            if (!data) {
+                // API key not set or returned null - don't retry
+                statusBarItem.text = 'YesCode: Error';
+                statusBarItem.tooltip = 'Failed to fetch balance. Click to retry.';
+                statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+                return;
+            }
+
+            // Success - update status bar with balance
+            const result = calculateBalance(data, currentDisplayMode);
+
+            statusBarItem.text = result.displayText;
+            statusBarItem.tooltip = result.tooltip;
+
+            if (result.type !== 'payGo') {
+                if (result.percentage < 10) {
+                    statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+                } else {
+                    statusBarItem.backgroundColor = undefined;
+                }
+            } else {
+                if (result.percentage < 5) {
+                    statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+                } else {
+                    statusBarItem.backgroundColor = undefined;
+                }
+            }
+
+            if (!isAutoRefresh) {
+                console.log('Balance updated successfully:', result.displayText);
+            }
+            return; // Success, exit function
+
+        } catch (error) {
+            lastError = error instanceof Error ? error : new Error(String(error));
+            console.error(`Fetch attempt ${attempt}/${MAX_RETRIES} failed:`, lastError.message);
+
+            if (attempt < MAX_RETRIES) {
+                // Show retrying status in status bar (no notification)
+                statusBarItem.text = `$(sync~spin) YesCode: Retrying (${attempt}/${MAX_RETRIES})...`;
+                statusBarItem.tooltip = `Fetch failed, retrying... (${attempt}/${MAX_RETRIES})`;
+                statusBarItem.backgroundColor = undefined;
+
+                // Wait before next retry
+                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+            }
+        }
+    }
+
+    // All retries exhausted - show error in status bar only (no notification)
+    console.error('All retry attempts failed:', lastError?.message);
+    statusBarItem.text = 'YesCode: Fetch Error';
+    statusBarItem.tooltip = `Failed to fetch balance after ${MAX_RETRIES} attempts. Click to retry.\nError: ${lastError?.message || 'Unknown error'}`;
+    statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
 }
 
 export function setDisplayMode(mode: DisplayMode): void {
